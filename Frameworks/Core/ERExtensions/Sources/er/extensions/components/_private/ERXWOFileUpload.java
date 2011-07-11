@@ -48,7 +48,9 @@ public class ERXWOFileUpload extends com.webobjects.appserver._private.WOFileUpl
     @Override
 	public void takeValuesFromRequest(WORequest worequest, WOContext wocontext) {
     	try {
-    		super.takeValuesFromRequest(worequest, wocontext);
+	    	if (!disabledInComponent(component) && wocontext._wasFormSubmitted()) {
+    			super.takeValuesFromRequest(worequest, wocontext);
+	    	}
     	} catch(IllegalStateException ex) {
     		// AK: Safari has the habit of posting only a part of the request when you backtrack and
     		// this in turn triggers an IllegalStateException in our superclass
