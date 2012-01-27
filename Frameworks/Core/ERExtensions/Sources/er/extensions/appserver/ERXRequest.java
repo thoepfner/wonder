@@ -1,6 +1,7 @@
 package er.extensions.appserver;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Enumeration;
-import java.util.Map;
 
 import org.apache.log4j.Logger;
 
@@ -11,15 +12,17 @@ import com.webobjects.appserver.WOContext;
 import com.webobjects.appserver.WORequest;
 import com.webobjects.appserver._private.WOProperties;
 import com.webobjects.appserver._private.WOShared;
+import com.webobjects.appserver._private.WOURLFormatException;
 import com.webobjects.foundation.NSArray;
 import com.webobjects.foundation.NSComparator;
 import com.webobjects.foundation.NSData;
 import com.webobjects.foundation.NSDictionary;
+import com.webobjects.foundation.NSForwardException;
 import com.webobjects.foundation.NSMutableArray;
 import com.webobjects.foundation.NSMutableDictionary;
+import com.webobjects.foundation.NSTimestamp;
 
 import er.extensions.foundation.ERXProperties;
-import er.extensions.foundation.ERXStringUtilities;
 import er.extensions.localization.ERXLocalizer;
 
 /** Subclass of WORequest that fixes several Bugs.
@@ -28,8 +31,6 @@ import er.extensions.localization.ERXLocalizer;
  * The request is created via {@link ERXApplication#createRequest(String,String,String, NSDictionary,NSData,NSDictionary)}.
  */
 public  class ERXRequest extends WORequest {
-	
-	
 
 	/** logging support */
     public static final Logger log = Logger.getLogger(ERXRequest.class);
@@ -42,7 +43,10 @@ public  class ERXRequest extends WORequest {
 
     protected static final NSArray<String> HOST_ADDRESS_KEYS = new NSArray<String>(new String[]{"pc-remote-addr", "remote_host", "remote_addr", "remote_user", "x-webobjects-remote-addr"});
 
-    protected static final NSArray<String> HOST_NAME_KEYS = new NSArray<String>(new String[]{"x-forwarded-host", "Host", "x-webobjects-server-name", "server_name", "http_host"});
+    // 'Host' is the official HTTP 1.1 header for the host name in the request URL, so this should be checked first.
+    // @see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.23
+    // Fallback headers such as server_name will screw up your complete URL generation for secure domains that have wildcard subdomains since it returns sth like *.domain.com for host name
+    protected static final NSArray<String> HOST_NAME_KEYS = new NSArray<String>(new String[]{"Host", "x-forwarded-host",  "x-webobjects-server-name", "server_name", "http_host"});
     
     /** NSArray to keep browserLanguages in. */
     protected NSArray<String> _browserLanguages;
@@ -73,6 +77,42 @@ public  class ERXRequest extends WORequest {
         _secureDisabled = ERXRequest._isSecureDisabled();
     }
     
+    /**
+     * This method is used by WOContext when generating full URLs for form actions in secure mode, etc.
+     *
+     * Overriding this because WORequest checks 'server_name' before 'Host' by default and it does not cut it for generating full secure
+     * urls in the case of a hostname that uses a wildcard SSL certificate allowing infinite secure subdomains.
+     *
+     * For example, if we have a wildcard ssl cert for https://*.mydomain.com (where * = wildcard subdomain), and we use
+     * subdomains to implement CSS skinning for different customers that are all using the
+     * same WO app while using subdomains to get their "custom" site, with host names such as
+     * acmesandwiches.mydomain.com, apple.mydomain.com, kfc.mydomain.com, etc., and we configure apache with one virtual host config for
+     * *.mydomain.com, then the stupid 'server_name' header will return *.mydomain.com INSTEAD OF the host name
+     * used in the request URL, and thus all https urls in forms, links etc will be broken.
+     *
+     * @return the server name, which happens to be used by WOContext for generating full URLs.
+     * @see com.webobjects.appserver.WORequest#_serverName()
+     * @see WOContext#completeURLWithRequestHandlerKey(String, String, String, String, boolean, int)
+     * @see WORequest#_completeURLPrefix(StringBuffer, boolean, int)
+     */
+	public String _serverName() {
+		String serverName = headerForKey("x-webobjects-servlet-server-name");
+
+		if ((serverName == null) || (serverName.length() == 0)) {
+			if (isUsingWebServer()) {
+				// Check our host name keys in our preferred order instead of Apple WO 5.4.3 default header check logic.
+				serverName = remoteHostName();
+
+				if ((serverName == null) || (serverName.length() == 0) || serverName.equals(UNKNOWN_HOST))
+					throw new NSForwardException(new WOURLFormatException("<" + super.getClass().getName() + ">: Unable to build complete url as no server name was provided in the headers of the request."));
+			}
+			else {
+				serverName = WOApplication.application().host();
+			}
+		}
+		return serverName;
+	}
+
     /**
      * Returns true if er.extensions.ERXRequest.secureDisabled is true.
      * 
@@ -163,6 +203,22 @@ public  class ERXRequest extends WORequest {
 		return result;
 	}
 
+    @Override
+    public NSTimestamp dateFormValueForKey(String aKey, SimpleDateFormat dateFormatter) {
+
+        String aDateString = stringFormValueForKey(aKey);
+        java.util.Date aDate = null;
+        if (aDateString != null && dateFormatter != null) {
+            try {
+                aDate = dateFormatter.parse(aDateString);
+            } catch (java.text.ParseException e) {
+               log.error(e);
+            }
+        }
+        return aDate == null ? null : new NSTimestamp(aDate);
+    }
+
+
 	/**
      * Gets the ERXBrowser associated with the user-agent of
      * the request.
@@ -178,7 +234,7 @@ public  class ERXRequest extends WORequest {
     }
 
     /**
-     * Cleaning up retian count on the browser.
+     * Cleaning up retain count on the browser.
      */
     @Override
 	public void finalize() throws Throwable {
@@ -278,7 +334,7 @@ public  class ERXRequest extends WORequest {
     }
 
     private static class _LanguageComparator extends NSComparator {
-        
+
         private static float quality(String languageString) {
             float result=0f;
             if (languageString!=null) {
@@ -302,12 +358,12 @@ public  class ERXRequest extends WORequest {
         
     }
 
-    
+    private final static NSComparator COMPARE_Qs = new _LanguageComparator();
+
     /** Translates ("de", "en-us;q=0.33", "en", "en-gb;q=0.66") to ("de", "en_gb", "en-us", "en").
      * @param languages NSArray of Strings
      * @return sorted NSArray of normalized Strings
      */
-    private final static NSComparator COMPARE_Qs = new _LanguageComparator();
     protected NSArray<String> fixAbbreviationArray(NSArray<String> languages) {
         try {
             languages=languages.sortedArrayUsingComparator(COMPARE_Qs);
@@ -374,7 +430,6 @@ public  class ERXRequest extends WORequest {
         }
     }
     
- 
 
     /**
      * Overridden because the super implementation would pull in all 

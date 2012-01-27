@@ -25,6 +25,8 @@ public class ERXTestSuite {
     
     suite.addTestSuite(com.webobjects.eoaccess.ERXEntityTest.class);
 
+    suite.addTestSuite(com.webobjects.appserver.WORequestTest.class);
+
     suite.addTestSuite(er.extensions.eof.ERXECTest.class);
     suite.addTestSuite(er.extensions.eof.ERXEOAccessUtilitiesTest.class);
     suite.addTestSuite(er.extensions.eof.ERXEOControlUtilitiesTest.class);    
@@ -35,10 +37,13 @@ public class ERXTestSuite {
 
     suite.addTestSuite(er.extensions.foundation.ERXArrayUtilitiesTest.class);
     suite.addTestSuite(er.extensions.foundation.ERXMutableArrayTest.class);
+
     suite.addTest(ERXStringUtilitiesTest.suite());
+
     suite.addTestSuite(er.extensions.foundation.ERXThreadStorageTest.class);
     suite.addTestSuite(er.extensions.foundation.ERXUtilitiesTest.class);
     suite.addTestSuite(er.extensions.foundation.ERXValueUtilitiesTest.class);
+    suite.addTestSuite(er.extensions.foundation.ERXFileUtilitiesTest.class);
 
     suite.addTestSuite(er.extensions.formatters.ERXOrdinalFormatterTests.class);
     suite.addTestSuite(er.extensions.formatters.ERXOrdinalDateFormatterTests.class);
@@ -48,6 +53,7 @@ public class ERXTestSuite {
     suite.addTestSuite(er.memoryadaptor.ERMemoryAdaptorTest.class);
 
     suite.addTestSuite(er.extensions.appserver.ERXApplicationTest.class);
+    suite.addTestSuite(er.extensions.appserver.ERXRequestTest.class);
     
     suite.addTestSuite(er.directtoweb.ERD2WModelTest.class);
 
@@ -63,19 +69,21 @@ public class ERXTestSuite {
     suite.addTestSuite(er.chronic.RepeaterMonthNameTest.class);
     suite.addTestSuite(er.chronic.RepeaterYearTest.class);
     suite.addTestSuite(er.chronic.RepeaterDayNameTest.class);
-    suite.addTestSuite(er.chronic.ParserTest.class);
+
+    suite.addTest((new er.chronic.ParserTest()).suite());
+
     suite.addTestSuite(er.chronic.ParseSpanTest.class);
     suite.addTestSuite(er.chronic.RepeaterTimeTest.class);
-    suite.addTestSuite(er.chronic.TokenTestCase.class);
+    suite.addTestSuite(er.chronic.TokenTest.class);
     suite.addTestSuite(er.chronic.RepeaterMonthTest.class);
     suite.addTestSuite(er.chronic.RepeaterWeekTest.class);
-    suite.addTestSuite(er.chronic.ChronicTestCase.class);
+    suite.addTestSuite(er.chronic.ChronicTest.class);
     suite.addTestSuite(er.chronic.RepeaterHourTest.class);
     suite.addTestSuite(er.chronic.RepeaterFortnightTest.class);
-    suite.addTestSuite(er.chronic.SpanTestCase.class);
-    suite.addTestSuite(er.chronic.HandlerTestCase.class);
+    suite.addTestSuite(er.chronic.SpanTest.class);
+    suite.addTestSuite(er.chronic.HandlerTest.class);
     suite.addTestSuite(er.chronic.RepeaterWeekendTest.class);
-    suite.addTestSuite(er.chronic.NumerizerTestCase.class);
+    suite.addTestSuite(er.chronic.NumerizerTest.class);
 
     return suite;
   }
